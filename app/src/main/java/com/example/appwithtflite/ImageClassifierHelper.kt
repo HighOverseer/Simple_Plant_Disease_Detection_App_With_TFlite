@@ -5,20 +5,21 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.MediaStore
-import com.example.appwithtflite.ml.PlantDiseaseModelKamekTerbaru
+import com.example.appwithtflite.ml.AutoModel1
+import com.example.appwithtflite.ml.PlantDiseaseModel
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.common.ops.CastOp
+import org.tensorflow.lite.support.common.ops.NormalizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
-import org.tensorflow.lite.support.model.Model
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
 import org.tensorflow.lite.task.vision.classifier.Classifications
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier
-import org.tensorflow.lite.task.vision.classifier.ImageClassifier.ImageClassifierOptions
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -26,7 +27,7 @@ import java.nio.ByteOrder
 class ImageClassifierHelper(
     private val maxResult:Int = 2,
     private val numThreads:Int = 4,
-    private val modelName:String = "plant_disease_model_Kamek_terbaru.tflite",
+    private val modelName:String = "1.tflite",
     private val context: Context,
     private var imageClassifierListener:ClassifierListener?
 ) {
@@ -34,7 +35,7 @@ class ImageClassifierHelper(
     private var imageClassifier:ImageClassifier?=null
 
     init {
-        setUpImageClassifier()
+        //setUpImageClassifier()
     }
 
     private fun setUpImageClassifier(){
@@ -59,50 +60,42 @@ class ImageClassifierHelper(
         }
     }
 
-    /*fun classify(imageUri: Uri):String {
-        try {
-            val image = imageUriToBitmap(imageUri)
-            val model: PlantDiseaseModel = PlantDiseaseModel.newInstance(context)
 
-            val imageSize = 128
+    fun classify(imageUri: Uri){
+        /*//GymGuide Project Reference
+        val model = PlantDiseaseModel.newInstance(context)
+        // Creates inputs for reference.
+        val imageSize = 128
 
-            // Creates inputs for reference.
-            val inputFeature0 =
-                TensorBuffer.createFixedSize(intArrayOf(1, 32, 32, 3), DataType.FLOAT32)
-            val byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3)
-            byteBuffer.order(ByteOrder.nativeOrder())
+        val inputFeature0 =
+            TensorBuffer.createFixedSize(intArrayOf(1, imageSize, imageSize, 3), DataType.FLOAT32)
+        val byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3)
+        byteBuffer.order(ByteOrder.nativeOrder())
+        val intValues = IntArray(imageSize * imageSize)
 
-            val intValues = IntArray(imageSize * imageSize)
-            image.getPixels(intValues, 0, image.width, 0, 0, image.width, image.height)
-            println(intValues)
-            var pixel = 0
-            //iterate over each pixel and extract R, G, and B values. Add those values individually to the byte buffer.
-            for (i in 0 until imageSize) {
-                for (j in 0 until imageSize) {
-                    val `val` = intValues[pixel++] // RGB
-                    byteBuffer.putFloat(((`val` shr 16) and 0xFF) * (1f / 1))
-                    byteBuffer.putFloat(((`val` shr 8) and 0xFF) * (1f / 1))
-                    byteBuffer.putFloat((`val` and 0xFF) * (1f / 1))
-                }
+        val image = imageUriToBitmap2(imageUri) ?: throw Exception("error")
+
+        image.getPixels(intValues, 0, image.width, 0, 0, image.width, image.height)
+        var pixel = 0
+        //iterate over each pixel and extract R, G, and B values. Add those values individually to the byte buffer.
+        for (i in 0 until imageSize) {
+            for (j in 0 until imageSize) {
+                val `val` = intValues[pixel++] // RGB
+                byteBuffer.putFloat((`val` shr 16 and 0xFF) * (1f / 255f))  // Normalize to [0, 1]
+                byteBuffer.putFloat((`val` shr 8 and 0xFF) * (1f / 255f))
+                byteBuffer.putFloat((`val` and 0xFF) * (1f / 255f))
             }
+        }
+        inputFeature0.loadBuffer(byteBuffer)
 
-            inputFeature0.loadBuffer(byteBuffer)
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
 
-            // Runs model inference and gets result.
-            val outputs: PlantDiseaseModel.Outputs = model.process(inputFeature0)
-            val outputFeature0: TensorBuffer = outputs.getOutputFeature0AsTensorBuffer()
+        println("outputs : $outputs")
+        println("outputFeature0 : $outputFeature0")
 
-            val confidences = outputFeature0.floatArray
-            // find the index of the class with the biggest confidence.
-            var maxPos = 0
-            var maxConfidence = 0f
-            for (i in confidences.indices) {
-                if (confidences[i] > maxConfidence) {
-                    maxConfidence = confidences[i]
-                    maxPos = i
-                }
-            }
-            val classes =  listOf("Tomato___Bacterial_spot",
+        val classes =  listOf(
+            "Tomato___Bacterial_spot",
             "Tomato___Early_blight",
             "Tomato___Late_blight",
             "Tomato___Leaf_Mold",
@@ -112,43 +105,123 @@ class ImageClassifierHelper(
             "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
             "Tomato___Tomato_mosaic_virus",
             "Tomato___healthy")
-            // Releases model resources if no longer used.
-            model.close()
 
-            return classes[maxPos]
-        } catch (e: IOException) {
-            return e.message.toString()
+        val sortedResult = outputFeature0.floatArray.sortedDescending()
+        val classNames = sortedResult.let {
+            val outputNames = mutableListOf<String>()
+
+            for(result in sortedResult){
+                val index = outputFeature0.floatArray.indexOfFirst { it == result }
+                if(index == -1) continue
+
+                outputNames.add(classes[index])
+            }
+
+            outputNames
         }
+
+        imageClassifierListener?.onResult(classNames)*/
+
+        //Sample Code Model Reference
+        val model = PlantDiseaseModel.newInstance(context)
+
+        val bitmap = imageUriToBitmap(imageUri)
+
+        val imageProcessor = ImageProcessor.Builder()
+            .add(ResizeOp(128, 128, ResizeOp.ResizeMethod.BILINEAR))
+            .add(NormalizeOp(0f, 255f)) // Normalize pixel values
+            .build()
+
+        val tensorImage = TensorImage(DataType.FLOAT32)
+        tensorImage.load(bitmap)
+        val processedImage = imageProcessor.process(tensorImage)
+
+        // Creates inputs for reference.
+        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, 128, 128, 3), DataType.FLOAT32)
+        inputFeature0.loadBuffer(processedImage.buffer)
+
+        // Runs model inference and gets result.
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+
+        println("outputs : $outputs")
+        println("outputFeature0 : $outputFeature0")
+
+        val classes =  listOf(
+            "Tomato___Bacterial_spot",
+            "Tomato___Early_blight",
+            "Tomato___Late_blight",
+            "Tomato___Leaf_Mold",
+            "Tomato___Septoria_leaf_spot",
+            "Tomato___Spider_mites Two-spotted_spider_mite",
+            "Tomato___Target_Spot",
+            "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+            "Tomato___Tomato_mosaic_virus",
+            "Tomato___healthy")
+
+        val sortedResult = outputFeature0.floatArray.sortedDescending()
+        val classNames = sortedResult.let {
+            val outputNames = mutableListOf<String>()
+
+            for(result in sortedResult){
+                val index = outputFeature0.floatArray.indexOfFirst { it == result }
+                if(index == -1) continue
+
+                outputNames.add(classes[index])
+            }
+
+            outputNames
+        }
+
+        imageClassifierListener?.onResult(classNames)
+
+        // Releases model resources if no longer used.
+        model.close()
     }
-*/
 
-    fun classify(imageUri: Uri){
+    //kode untuk membandingkan cara 1 dengan cara 2
+    /*fun classify(imageUri: Uri){
+        //cara 1
+        val model = AutoModel1.newInstance(context)
 
-        if (imageClassifier == null){
+        val bitmap1 = imageUriToBitmap2(imageUri, imageSize = 224)
+        val image = TensorImage.fromBitmap(bitmap1)
+
+
+        val outputs = model.process(image)
+        val probability = outputs.probabilityAsCategoryList
+        probability.sortByDescending { it.score }
+        probability.slice(0..5).forEach {
+            println("class : ${it.label} , score : ${it.score}")
+        }
+
+
+        model.close()
+
+
+        //cara 2
+        if (imageClassifier == null) {
             setUpImageClassifier()
         }
 
+        val bitmap2 = imageUriToBitmap(imageUri)
+
         val imageProcessor = ImageProcessor.Builder()
-            .add(ResizeOp(300, 300, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
-            .add(CastOp(DataType.FLOAT32))
+            .add(ResizeOp(224, 224, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
+            .add(CastOp(DataType.UINT8))
             .build()
 
-        val tensorImage = imageProcessor.process(
-            TensorImage.fromBitmap(
-                imageUriToBitmap(
-                    imageUri
-                )
-            )
-        )
+        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(bitmap2))
 
         val imageProcessingOptions = ImageProcessingOptions.builder()
             .build()
 
-        val results = imageClassifier?.classify(tensorImage, imageProcessingOptions)
-        println(results)
-        imageClassifierListener?.onResult(results)
+        val results = imageClassifier?.classify(tensorImage, imageProcessingOptions) ?: emptyList()
+        imageClassifierListener?.onResult(
+            results
+        )
     }
-
+*/
     private fun imageUriToBitmap(imageUri: Uri):Bitmap{
         return if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
             val source = ImageDecoder.createSource(context.contentResolver, imageUri)
@@ -158,25 +231,46 @@ class ImageClassifierHelper(
         }.copy(Bitmap.Config.ARGB_8888, true)
     }
 
+    private fun imageUriToBitmap2(imageUri: Uri, imageSize:Int = 128):Bitmap?{
+        return if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
+            val source = ImageDecoder.createSource(context.contentResolver, imageUri)
+            var bitmap = ImageDecoder.decodeBitmap(source){ decoder, _, _ ->
+                decoder.setTargetSampleSize(1) // shrinking by
+                decoder.isMutableRequired =
+                    true
+            }
+            bitmap = Bitmap.createScaledBitmap(bitmap, imageSize, imageSize, false)
+            bitmap
+        }else{
+            null
+        }
+    }
+
     private fun resizeBitmap(bitmap: Bitmap): Bitmap {
         return Bitmap.createScaledBitmap(bitmap, 300, 300, false)
     }
 
-    /*private fun getMax(arr:FloatArray):Int{
-        var max = 0
-        (arr.indices).forEach{
-            if(arr[it] > arr[max]){
-                max = it
-            }
+    private fun imageUriToByteBuffer(context: Context, imageUri: Uri): ByteBuffer? {
+        return try {
+            val contentResolver = context.contentResolver
+            val inputStream = contentResolver.openInputStream(imageUri)
+
+            val byteBuffer = ByteBuffer.allocate(inputStream!!.available())
+            byteBuffer.order(ByteOrder.nativeOrder())
+            inputStream.read(byteBuffer.array())
+            inputStream.close()
+
+            byteBuffer
+        } catch (e: IOException) {
+            null // Handle errors appropriately
         }
-        return max
-    }*/
+    }
 
     interface ClassifierListener{
         fun onError(error:String)
 
         fun onResult(
-            results:List<Classifications>?
+            outputClassNames:List<String>
         )
     }
 }

@@ -99,9 +99,11 @@ class MainActivity : AppCompatActivity(),
 
     }
 
-    override fun onResult(results:List<Classifications>?) {
+    override fun onResult(outputClassNames:List<String>) {
         runOnUiThread {
-            results?.let {
+            val displayResult = outputClassNames.joinToString("\n")
+            binding.edAddDescription.text = displayResult
+            /*outputClassNames.let {
                 if(it.isNotEmpty() && it[0].categories.isNotEmpty()){
                     println(it)
                     val sortedCategories = it[0].categories.sortedByDescending { category ->
@@ -113,7 +115,7 @@ class MainActivity : AppCompatActivity(),
                     }
                     binding.edAddDescription.text = displayResult
                 }
-            }
+            }*/
         }
 
     }

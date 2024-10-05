@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">AppWithTFLite</string>
     <string name="please_insert_the_image_file_first">Please insert the image file first!</string>
+    <string name="prediction">Prediction : %1$s</string>
 </resources>
