@@ -17,6 +17,7 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.appwithtflite.databinding.ActivityMainBinding
+import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.vision.classifier.Classifications
 import java.text.NumberFormat
 
@@ -99,23 +100,13 @@ class MainActivity : AppCompatActivity(),
 
     }
 
-    override fun onResult(outputClassNames:List<String>) {
+    override fun onResult(outputClassNames:List<Category>) {
         runOnUiThread {
-            val displayResult = outputClassNames.joinToString("\n")
+            val displayResult = outputClassNames.joinToString("\n") {category ->
+                "${category.label} " + NumberFormat.getPercentInstance()
+                    .format(category.score).trim()
+            }
             binding.edAddDescription.text = displayResult
-            /*outputClassNames.let {
-                if(it.isNotEmpty() && it[0].categories.isNotEmpty()){
-                    println(it)
-                    val sortedCategories = it[0].categories.sortedByDescending { category ->
-                        category?.score
-                    }
-                    val displayResult = sortedCategories.joinToString("\n") {category ->
-                        "${category.label} " + NumberFormat.getPercentInstance()
-                            .format(category.score).trim()
-                    }
-                    binding.edAddDescription.text = displayResult
-                }
-            }*/
         }
 
     }
