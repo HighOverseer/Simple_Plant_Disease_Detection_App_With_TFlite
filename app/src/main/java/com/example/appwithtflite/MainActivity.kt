@@ -100,13 +100,9 @@ class MainActivity : AppCompatActivity(),
 
     }
 
-    override fun onResult(outputClassNames:List<Category>) {
+    override fun onResult(outputClassNames:List<String>) {
         runOnUiThread {
-            val displayResult = outputClassNames.joinToString("\n") {category ->
-                "${category.label} " + NumberFormat.getPercentInstance()
-                    .format(category.score).trim()
-            }
-            binding.edAddDescription.text = displayResult
+            binding.edAddDescription.text = outputClassNames.first()
         }
 
     }
