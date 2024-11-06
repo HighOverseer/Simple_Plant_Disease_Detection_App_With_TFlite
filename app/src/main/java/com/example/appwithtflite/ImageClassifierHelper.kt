@@ -36,6 +36,8 @@ class ImageClassifierHelper(
 
     private var imageClassifier: ImageClassifier? = null
 
+
+
     private fun setUpImageClassifier() {
         val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
             .setScoreThreshold(0.1f)
